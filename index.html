@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Nole Mohammed - Federated Identity</title>
+
+  <!-- Google Identity Services SDK -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d0d0f;
+      --surface:   #141418;
+      --border:    #2a2a35;
+      --gold:      #c9a84c;
+      --gold-light:#e8c96a;
+      --text:      #e8e6df;
+      --muted:     #7a7870;
+      --accent:    #4285F4;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    .bg-lines {
+      position: fixed; inset: 0; overflow: hidden; z-index: 0;
+    }
+    .bg-lines span {
+      position: absolute;
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      animation: pulseRing 8s ease-in-out infinite;
+      opacity: 0;
+    }
+    .bg-lines span:nth-child(1) { width: 600px; height: 600px; top: -100px; right: -100px; animation-delay: 0s; }
+    .bg-lines span:nth-child(2) { width: 900px; height: 900px; top: -250px; right: -250px; animation-delay: 1.5s; }
+    .bg-lines span:nth-child(3) { width: 1200px; height: 1200px; top: -400px; right: -400px; animation-delay: 3s; }
+    
+    @keyframes pulseRing {
+      0%   { opacity: 0; transform: scale(0.95); }
+      50%  { opacity: 1; }
+      100% { opacity: 0; transform: scale(1.05); }
+    }
+
+    .page {
+      position: relative; z-index: 1;
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+    }
+
+    header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 28px 48px;
+      border-bottom: 1px solid var(--border);
+    }
+    .logo {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.1rem;
+      letter-spacing: 0.08em;
+      color: var(--gold);
+    }
+    .badge {
+      font-size: 0.7rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      padding: 5px 12px;
+      border-radius: 20px;
+    }
+
+    main {
+      flex: 1;
+      display: flex; align-items: center; justify-content: center;
+      padding: 60px 24px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 64px 56px;
+      max-width: 520px; width: 100%;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      animation: fadeUp 0.7s ease both;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(32px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .card::before {
+      content: '';
+      position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+      width: 60%; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    }
+
+    .eyebrow {
+      font-size: 0.7rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 20px;
+    }
+
+    .name-display {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(2.4rem, 5vw, 3.6rem);
+      font-weight: 900;
+      line-height: 1.1;
+      background: linear-gradient(135deg, var(--gold-light) 0%, var(--gold) 60%, #9a6e2a 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 12px;
+    }
+
+    .tagline {
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 300;
+      margin-bottom: 48px;
+      line-height: 1.6;
+    }
+
+    .divider {
+      display: flex; align-items: center; gap: 14px;
+      margin-bottom: 36px;
+    }
+    .divider::before, .divider::after {
+      content: ''; flex: 1;
+      height: 1px; background: var(--border);
+    }
+    .divider span {
+      font-size: 0.72rem;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    /* Container for the Google Button */
+    #google-button-container {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    .privacy-note {
+      margin-top: 20px;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+
+    #profile-section {
+      display: none;
+      animation: fadeUp 0.5s ease both;
+    }
+
+    .avatar-wrap {
+      position: relative;
+      width: 96px; height: 96px;
+      margin: 0 auto 24px;
+    }
+    .avatar-wrap img {
+      width: 96px; height: 96px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 3px solid var(--gold);
+    }
+    .avatar-wrap .online-dot {
+      position: absolute; bottom: 4px; right: 4px;
+      width: 14px; height: 14px;
+      background: #22c55e;
+      border-radius: 50%;
+      border: 2px solid var(--surface);
+    }
+
+    .welcome-label {
+      font-size: 0.72rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .user-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.9rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .user-email {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 32px;
+    }
+
+    .info-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 12px; margin-bottom: 32px;
+    }
+    .info-chip {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      text-align: left;
+    }
+    .info-chip .chip-label {
+      font-size: 0.65rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .info-chip .chip-val {
+      font-size: 0.85rem;
+      color: var(--text);
+      font-weight: 500;
+    }
+    .chip-val.verified { color: #22c55e; }
+
+    .signout-btn {
+      width: 100%;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 10px;
+      padding: 12px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.88rem;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .signout-btn:hover {
+      border-color: #e55;
+      color: #e55;
+    }
+
+    footer {
+      text-align: center;
+      padding: 24px;
+      font-size: 0.72rem;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+    }
+    footer strong { color: var(--gold); }
+  </style>
+</head>
+<body>
+
+<div class="bg-lines">
+  <span></span><span></span><span></span>
+</div>
+
+<div class="page">
+  <header>
+    <div class="logo">NM</div>
+    <div class="badge">Federated Identity Demo</div>
+  </header>
+
+  <main>
+    <div class="card">
+      <!-- ══ SIGN-IN SECTION ══ -->
+      <div id="signin-section">
+        <p class="eyebrow">Welcome to the portfolio of</p>
+        <h1 class="name-display">Nole Mohammed</h1>
+        <p class="tagline">
+          This page is protected by Federated Identity Management.<br/>
+          Sign in with your Google account to continue.
+        </p>
+
+        <div class="divider"><span>Identity Provider</span></div>
+
+        <!-- Google's Library will inject the button here -->
+        <div id="google-button-container"></div>
+
+        <p class="privacy-note">
+          By signing in, you agree to our terms. No passwords are stored locally —<br/>
+          Google acts as the trusted Identity Provider.
+        </p>
+      </div>
+
+      <!-- ══ PROFILE SECTION ══ -->
+      <div id="profile-section">
+        <div class="avatar-wrap">
+          <img id="user-avatar" src="" alt="Profile photo"/>
+          <div class="online-dot"></div>
+        </div>
+        <p class="welcome-label">Signed in as</p>
+        <h2 class="user-name" id="user-fullname">—</h2>
+        <p class="user-email" id="user-email">—</p>
+
+        <div class="info-grid">
+          <div class="info-chip">
+            <div class="chip-label">Identity Provider</div>
+            <div class="chip-val">Google OAuth 2.0</div>
+          </div>
+          <div class="info-chip">
+            <div class="chip-label">Email Status</div>
+            <div class="chip-val verified" id="email-verified">✓ Verified</div>
+          </div>
+          <div class="info-chip">
+            <div class="chip-label">Service Provider</div>
+            <div class="chip-val">Nole Mohammed Site</div>
+          </div>
+          <div class="info-chip">
+            <div class="chip-label">Token Type</div>
+            <div class="chip-val">JWT / ID Token</div>
+          </div>
+        </div>
+
+        <button class="signout-btn" onclick="signOut()">Sign out</button>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    Built by <strong>Nole Mohammed</strong> &nbsp;·&nbsp;
+    Federated Identity via Google OAuth 2.0
+  </footer>
+</div>
+
+<script>
+  const GOOGLE_CLIENT_ID = "610465326003-and1juqcokj6nso6dd7i8l4nire5tl7j.apps.googleusercontent.com";
+
+  window.onload = () => {
+    // 1. Initialize Google Identity
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: handleCredentialResponse,
+      auto_select: false,
+      // CRITICAL FIX: Disable FedCM to prevent 403/Network errors on local servers
+      use_fedcm_for_prompt: false 
+    });
+
+    // 2. Render the official button
+    google.accounts.id.renderButton(
+      document.getElementById("google-button-container"),
+      { 
+        theme: "filled_blue", 
+        size: "large", 
+        width: 320,
+        text: "continue_with"
+      }
+    );
+  };
+
+  function handleCredentialResponse(response) {
+    try {
+      // Decode JWT payload
+      const base64Url = response.credential.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+
+      const payload = JSON.parse(jsonPayload);
+      
+      showProfile({
+        name:    payload.name,
+        email:   payload.email,
+        picture: payload.picture,
+        verified: payload.email_verified,
+      });
+    } catch (e) {
+      console.error("Error decoding token:", e);
+      alert("Sign-in failed. Check console for details.");
+    }
+  }
+
+  function showProfile({ name, email, picture, verified }) {
+    document.getElementById("user-fullname").textContent  = name;
+    document.getElementById("user-email").textContent     = email;
+    document.getElementById("user-avatar").src            = picture;
+    document.getElementById("email-verified").textContent = verified ? "✓ Verified" : "✗ Unverified";
+
+    document.getElementById("signin-section").style.display  = "none";
+    document.getElementById("profile-section").style.display = "block";
+  }
+
+  function signOut() {
+    google.accounts.id.disableAutoSelect();
+    // To properly "logout" in a demo, we simply refresh or reset UI
+    location.reload(); 
+  }
+</script>
+</body>
+</html>
